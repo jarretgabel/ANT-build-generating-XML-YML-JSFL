@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<project name="" default="" basedir=".">
+		
+    <!-- Property file(s) -->
+    <property file="user.properties" />
+    <property file="build.properties" />
+	
+	<!-- Task definitions -->
+	<taskdef resource="flexTasks.tasks" classpath="${FLEX_HOME}/ant/lib/flexTasks.jar" />
+	<taskdef resource="flexUnitTasks.tasks" classpath="${resources.dir}/lib/jar/flexUnitTasks-4.0.0.jar" />
+	<taskdef resource="net/sf/antcontrib/antcontrib.properties" classpath="${resources.dir}/lib/jar/ant-contrib.jar" />
+	<taskdef name="stringutil" classname="ise.antelope.tasks.StringUtilTask" classpath="${resources.dir}/lib/jar/AntelopeTasks_3.5.1.jar"/>
+	<taskdef name="if" classname="ise.antelope.tasks.IfTask" classpath="${resources.dir}/lib/jar/AntelopeTasks_3.5.1.jar"/>
+	<taskdef name="xmltask" classname="com.oopsconsultancy.xmltask.ant.XmlTask" classpath="${resources.dir}/lib/jar/xmltask.jar" />
+		
+	<!-- Create project -->
+	<!-- ant create-project -Dname=${name} -->
+	<target name="create-project">			
+		<property name="init-status" value="Thanks for helping out.." />
+		<stringutil string="${init-status}" property="init-status">
+			<messagebox title=":: Create Project ${name} ::" width="100" />
+		</stringutil>
+		<echo>${init-status}</echo>
+		
+		<if name="name" exists="true">
+			<antcall target="validate-project"/>
+			<else>
+				<antcall target="create-fail"/>
+			</else>
+		</if>
+	</target>
+	
+	<!-- Validate project -->
+	<!-- Check if project already exists -->
+	<target name="validate-project">
+		<if>
+			<bool>
+				<available file="${xml.dir}/${name}" type="dir"/>
+			</bool>
+				<property name="exists" value="Please ensure you want to overwrite the existing project." />
+				<stringutil string="${exists}" property="exists">
+					<messagebox title=":: Project already exists ::" width="100" />
+				</stringutil>
+				<echo>${exists}</echo>
+				
+				<input message="Overwrite?" validargs="yes,no" addproperty="do.overwrite"/>
+				
+				<if name="do.overwrite" value="yes">
+					<antcall target="do-create-project"/>
+				</if>
+				
+				<if name="do.overwrite" value="no">
+					<property name="fail-status" value="The files were NOT overwritten." />
+					<stringutil string="${fail-status}" property="fail-status">
+						<messagebox title=":: NOTHING DONE ::" width="100" />
+					</stringutil>
+					<echo>${fail-status}</echo>
+				</if>
+			<else>
+				<antcall target="do-create-project"/>
+			</else>
+		</if>
+	</target>
+	
+	<!-- Do Create Project -->
+	<target name="do-create-project">
+		
+		<!-- Create project XML file -->
+		<echo>[create-project] Create xml folder ${xml.dir}/${name}</echo>
+		<mkdir dir="${xml.dir}/${name}" />
+		<copy file="${xmltemplate.file}" tofile="${xml.dir}/${name}/${name}.xml"/>
+		<replace file="${xml.dir}/${name}/${name}.xml" token="${project-name}" value="${name}"/>
+		
+		<!-- Create project document class -->
+		<echo>[do-create-project] Create src folder ${doc.dir}/${name}</echo>
+		<mkdir dir="${doc.dir}/${name}" />
+		<stringutil string="${name}" property="firstChar">
+			<uppercase/>
+			<substring endindex="1"/>
+		</stringutil>
+		<stringutil string="${name}" property="secondChar">
+			<substring beginindex="1"/>
+		</stringutil>
+		<property name="document-class" value="${firstChar}${secondChar}" />  
+		
+		<echo>[do-create-project] Create document class file ${doc.dir}/${name}/${document-class}.as</echo>
+		<copy file="${srctemplate.file}" tofile="${doc.dir}/${name}/${document-class}.as"/>
+		<replace file="${doc.dir}/${name}/${document-class}.as" token="${package-location}" value="${name}"/>
+		<replace file="${doc.dir}/${name}/${document-class}.as" token="${project-name}" value="${document-class}"/>
+		<replace file="${doc.dir}/${name}/${document-class}.as" token="${xml-location}" value='"${name}/${name}.xml"'/>
+		
+		<!-- Create project FLA -->
+		<echo>[do-create-project] Create fla folder ${fla.dir}/${name}</echo>
+		<mkdir dir="${fla.dir}/${name}" />
+		<copy file="${flatemplate.file}" tofile="${fla.dir}/${name}/${name}.fla"/>
+		
+		<property name="auto.update" value="Would you like me to update the FLA settings automatically?" />
+		<stringutil string="${auto.update}" property="auto.update">
+			<messagebox title=":: FLA publish settings update ::" width="100" />
+		</stringutil>
+		<echo>${auto.update}</echo>
+		<input message="Update?" validargs="yes,no" addproperty="do.update"/>
+		<if name="do.update" value="yes">
+			<antcall target="update-fla"/>
+		</if>
+		<if name="do.update" value="no">
+			<property name="update-deny-status" value="Please remember to update your FLA document class and publish settings manually." />
+			<stringutil string="${update-deny-status}" property="update-deny-status">
+				<messagebox title=":: Manual FLA Update ::" width="100" />
+			</stringutil>
+			<echo>${update-deny-status}</echo>
+		</if>
+	</target>
+	
+	<!-- Update FLA document/publish settings -->
+	<target name="update-fla">
+		
+		<!-- CREATE JSFL FILE -->
+		<copy file="${jsfltemplate.file}" tofile="${resources.dir}/jsfl/${name}.jsfl"/>
+		<property name="projectJSFL.file" value="${resources.dir}/jsfl/${name}.jsfl" />
+		<replace file="${projectJSFL.file}" token="${swf.file}" value="${name}"/>
+		<echo>${resources.dir}</echo>
+		<replace file="${projectJSFL.file}" token="${resources}" value="${resources.dir}"/>
+		<replace file="${projectJSFL.file}" token="${swfdir}" value="${swf.dir}"/>
+		<replace file="${projectJSFL.file}" token="${fla.file}" value="${name}"/>
+		<replace file="${projectJSFL.file}" token="${docClass}" value="com.main.${name}.${document-class}"/>
+		<property name="compile.jsfl" value="'${resources.dir}/jsfl/${name}.jsfl'" />
+		<exec executable="${FLASH_HOME}">
+			<arg line="${compile.jsfl}"/>
+		</exec>
+		
+		<!-- DELETE JSFL FILE -->
+		<delete file="${resources.dir}/jsfl/${name}.jsfl"/>
+		
+		<property name="complete-status" value="Rock and roll" />
+		<stringutil string="${complete-status}" property="complete-status">
+			<messagebox title=":: Project successfully created ::" width="100" />
+		</stringutil>
+		<echo>${complete-status}</echo>
+	</target>
+	
+	<!-- Project create fail -->
+	<target name="create-fail">
+		<property name="create-error" value="Please format the creation command: ant create-project -Dname=projectname" />
+				<stringutil string="${create-error}" property="create-error">
+				<messagebox title=":: Project Creation Error ::" width="100" />
+			</stringutil>
+		<echo>${create-error}</echo>
+	</target>
+	
+	<!-- Delete project -->
+	<!-- ant delete-project -Dname=${name} -->
+	<target name="delete-project">
+		<echo>${doc.dir}/${name}</echo>
+		<if>
+			<bool>
+				<available file="${doc.dir}/${name}" type="dir"/>
+			</bool>
+				<input message="Are you extra sure?" validargs="yes,no" addproperty="do.delete"/>
+				<if name="do.delete" value="yes">
+					<delete dir="${doc.dir}/${name}"/>
+					<delete dir="${xml.dir}/${name}"/>
+					<delete dir="${fla.dir}/${name}"/>
+					<delete file="${PROJECT_HOME}/build/swf/assets/${name}.swf"/>
+					<delete file="${resources.dir}/jsfl/${name}.jsfl"/>
+						
+					<!-- Delete success message -->
+					<property name="delete-status" value="... go get a coffee" />
+					<stringutil string="${delete-status}" property="delete-status">
+						<messagebox title=":: Project successfully deleted ::" width="100" />
+					</stringutil>
+					<echo>${delete-status}</echo>
+				</if>
+				<if name="do.delete" value="no">
+					<!-- Delete cancel message -->
+					<property name="not-delete" value="Sorry to bother you. Continue on." />
+					<stringutil string="${not-delete}" property="not-delete">
+						<messagebox title=":: Delete cancelled ::" width="100" />
+					</stringutil>
+					<echo>${not-delete}</echo>
+				</if>
+			<else>
+				<!-- Project does not exist to delete message -->
+				<property name="does-not-exist" value="Nothing happened." />
+				<stringutil string="${does-not-exist}" property="does-not-exist">
+					<messagebox title=":: Project doesn't exist ::" width="100" />
+				</stringutil>
+				<echo>${does-not-exist}</echo>
+			</else>
+		</if>
+	</target>
+	
+	<target name="query-questions">
+		<!-- Create projects.yml file -->
+		<touch file= "${yml.dir}/projects.yml" />
+		
+		<!-- Create projects.txt file -->
+		<delete file="${xml.dir}/projects.txt"/>
+		<delete file="${xml.dir}/projects.xml"/>
+		<touch file= "${xml.dir}/projects.txt" />
+		
+		<!-- yml header -->
+		<echo file="${yml.dir}/projects.yml"># Project yml&#xD;&#x0A;</echo>
+		<echo file="${yml.dir}/projects.yml" append="true">---&#xD;&#x0A;</echo>
+		
+		<!-- xml header -->
+		<echo file="${xml.dir}/projects.txt">&lt;?xml version="1.0" encoding="UTF-8"?&gt;&#xD;</echo>
+		<echo file="${xml.dir}/projects.txt" append="true">&lt;data&gt;&#xD;</echo>
+		
+		<foreach target="log-question" param="xml.file">
+			<path>
+				<fileset dir="${xml.dir}" includes="**/*.xml" />
+			</path>
+		</foreach>
+		
+		<!-- yml header -->
+		<!--<echo file="${yml.dir}/projects.yml" append="true">...&#x0A;</echo>-->
+		
+		<!-- xml header -->
+		<echo file="${xml.dir}/projects.txt" append="true">&lt;/data&gt;</echo>
+		<move file="${xml.dir}/projects.txt" tofile="${xml.dir}/projects.xml"/>
+		
+	</target>
+	
+	<target name="log-question">		
+		<!-- add item -->
+		<echo file="${yml.dir}/projects.yml" append="true">-&#xD;&#x0A;</echo>
+		<echo file="${xml.dir}/projects.txt" append="true">&#9;&lt;item&gt;&#xD;</echo>
+		
+		<xmltask id="${xml.file}" source="${xml.file}">
+				
+			<call path="//config/id" >
+			<param name="id" path="text()"/>
+					<actions>
+						
+						<!-- add id -->
+						<echo file="${yml.dir}/projects.yml" append="true">  id  : @{id}&#xD;&#x0A;</echo>
+						<echo file="${xml.dir}/projects.txt" append="true">&#9;&#9;&lt;id&gt;@{id}&lt;/id&gt;&#xD;</echo>
+						
+						<!-- add swf -->
+						<echo file="${yml.dir}/projects.yml" append="true">  text  : @{id}.swf&#xD;&#x0A;</echo>
+						<echo file="${xml.dir}/projects.txt" append="true">&#9;&#9;&lt;swf&gt;@{id}.swf&lt;/swf&gt;&#xD;</echo>
+						
+						<!-- add tags -->
+						<echo file="${yml.dir}/projects.yml" append="true">  tags  :&#xD;&#x0A;</echo>
+						<echo file="${xml.dir}/projects.txt" append="true">&#9;&#9;&lt;tags&gt;&#xD;</echo>
+						
+					</actions>
+			</call>
+			
+			<call path="//config/personality/trait" >
+			<param name="trait" path="text()"/>
+					<actions>
+						<!-- add tags.trait -->
+						<echo file="${yml.dir}/projects.yml" append="true">    - @{trait}&#xD;&#x0A;</echo>
+						<echo file="${xml.dir}/projects.txt" append="true">&#9;&#9;&#9;&#9;&lt;tag&gt;@{trait}&lt;/tag&gt;&#xD;</echo>
+					</actions>
+			</call>
+			
+		</xmltask>
+		
+		<echo file="${xml.dir}/projects.txt" append="true">&#9;&#9;&lt;/tags&gt;&#xD;</echo>
+		<echo file="${xml.dir}/projects.txt" append="true">&#9;&lt;/item&gt;&#xD;</echo>
+		
+	</target>
+	
+	  
+<target name="test.properties"
+        description="Test if some directories have been created">
+    <condition property="isWindows">
+        <os family="windows" />
+    </condition>
+    <condition property="isMac">
+        <os family="mac" />
+    </condition>
+    <condition property="isDos">
+        <os family="dos" />
+    </condition>
+    <condition property="isNetware">
+        <os family="netware" />
+    </condition>
+    <condition property="isOs-2">
+       <os family="os/2" />
+    </condition>
+    <condition property="isWin9x">
+       <os family="win9x" />
+    </condition>
+    <echo>
+        Property isWindows : ${isWindows}
+        Property isMac : ${isMac}
+        Property isDos : ${isDos}
+        Property isNetware  :${isNetware}
+        Property isOs-2 : ${isOs-2}
+        Property isWin9x : ${isWin9x}
+    </echo>
+</target>
+
+</project>
